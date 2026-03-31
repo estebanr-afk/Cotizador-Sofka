@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sofka · Analizador de Cotizaciones</title>
+<script>
+(function() {
+  var urls = [
+    'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js',
+    'https://unpkg.com/pptxgenjs@3.12.0/dist/pptxgen.bundle.js'
+  ];
+  var idx = 0;
+  function tryLoad() {
+    if (idx >= urls.length) { window._pptxFailed = true; return; }
+    var s = document.createElement('script');
+    s.src = urls[idx++];
+    s.onload = function() { window._pptxLoaded = true; };
+    s.onerror = function() { tryLoad(); };
+    document.head.appendChild(s);
+  }
+  tryLoad();
+})();
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --sofka-orange: #FC7400;
+    --sofka-orange-light: #FF9D45;
+    --sofka-orange-dim: rgba(252,116,0,0.12);
+    --sofka-dark: #0E0E0F;
+    --sofka-surface: #161618;
+    --sofka-card: #1E1E21;
+    --sofka-border: rgba(255,255,255,0.07);
+    --sofka-text: #F0F0F2;
+    --sofka-muted: #8A8A96;
+    --sofka-success: #2ECC71;
+    --sofka-warn: #F39C12;
+    --sofka-danger: #E74C3C;
+    --radius: 12px;
+    --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--sofka-dark);
+    color: var(--sofka-text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ─────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 40px;
+    border-bottom: 1px solid var(--sofka-border);
+    background: rgba(14,14,15,0.9);
+    backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-mark {
+    width: 34px; height: 34px;
+    background: var(--sofka-orange);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; color: #fff; letter-spacing: -0.5px;
+  }
+  .logo-text { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+  .logo-text span { color: var(--sofka-orange); }
+
+  .header-badge {
+    font-size: 11px; font-weight: 500;
+    background: var(--sofka-orange-dim);
+    color: var(--sofka-orange);
+    border: 1px solid rgba(252,116,0,0.25);
+    padding: 4px 10px; border-radius: 20px;
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+
+  /* ── MAIN LAYOUT ─────────────────────────────── */
+  main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ── UPLOAD ZONE ─────────────────────────────── */
+  .section-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--sofka-orange);
+    margin-bottom: 16px;
+  }
+
+  .upload-area {
+    border: 2px dashed rgba(252,116,0,0.3);
+    border-radius: var(--radius);
+    background: rgba(252,116,0,0.04);
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition);
+    position: relative;
+  }
+  .upload-area:hover, .upload-area.drag-over {
+    border-color: var(--sofka-orange);
+    background: rgba(252,116,0,0.08);
+  }
+  .upload-area input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .upload-icon {
+    width: 48px; height: 48px;
+    background: var(--sofka-orange-dim);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 16px;
+    font-size: 22px;
+  }
+  .upload-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .upload-sub { font-size: 13px; color: var(--sofka-muted); }
+
+  /* ── FILES LIST ─────────────────────────────── */
+  .files-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 20px;
+  }
+  .file-chip {
+    background: var(--sofka-card);
+    border: 1px solid var(--sofka-border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex; align-items: center; gap: 10px;
+    position: relative; overflow: hidden;
+    animation: fadeIn 0.3s ease;
+  }
+  .file-chip::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px; background: var(--sofka-orange);
+  }
+  .file-chip .pdf-icon {
+    width: 32px; height: 32px; flex-shrink: 0;
+    background: rgba(252,116,0,0.15); border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .file-info { flex: 1; min-width: 0; }
+  .file-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-size { font-size: 11px; color: var(--sofka-muted); margin-top: 2px; }
+  .file-remove {
+    background: none; border: none; color: var(--sofka-muted);
+    cursor: pointer; font-size: 16px; line-height: 1; padding: 2px;
+    border-radius: 4px; transition: var(--transition);
+  }
+  .file-remove:hover { color: var(--sofka-danger); background: rgba(231,76,60,0.1); }
+
+  /* ── ANALYZE BUTTON ─────────────────────────── */
+  .analyze-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; padding: 16px;
+    background: var(--sofka-orange);
+    border: none; border-radius: var(--radius);
+    color: #fff; font-family: 'DM Sans', sans-serif;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: var(--transition); margin-top: 24px;
+    position: relative; overflow: hidden;
+  }
+  .analyze-btn:hover:not(:disabled) { background: var(--sofka-orange-light); transform: translateY(-1px); }
+  .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── PROGRESS ────────────────────────────────── */
+  .progress-bar {
+    height: 3px; background: var(--sofka-border);
+    border-radius: 3px; overflow: hidden; margin-top: 16px;
+  }
+  .progress-fill {
+    height: 100%; background: var(--sofka-orange);
+    border-radius: 3px;
+    transition: width 0.4s ease;
+  }
+  .progress-label {
+    font-size: 12px; color: var(--sofka-muted); margin-top: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .spinner {
+    width: 12px; height: 12px;
+    border: 2px solid var(--sofka-border);
+    border-top-color: var(--sofka-orange);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  /* ── RESULTS ─────────────────────────────────── */
+  .results-section { margin-top: 48px; }
+  .results-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .results-title { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  .export-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 18px;
+    background: transparent;
+    border: 1px solid var(--sofka-orange);
+    border-radius: 8px;
+    color: var(--sofka-orange);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: var(--transition);
+  }
+  .export-btn:hover { background: var(--sofka-orange-dim); }
+  .reset-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 18px;
+    background: transparent;
+    border: 1px solid var(--sofka-border);
+    border-radius: 8px;
+    color: var(--sofka-muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: var(--transition);
+  }
+  .reset-btn:hover { border-color: var(--sofka-text); color: var(--sofka-text); background: rgba(255,255,255,0.04); }
+  .results-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  /* ── ANALYSIS CARD ──────────────────────────── */
+  .analysis-card {
+    background: var(--sofka-card);
+    border: 1px solid var(--sofka-border);
+    border-radius: var(--radius);
+    padding: 28px; margin-bottom: 20px;
+  }
+  .analysis-card h3 {
+    font-size: 13px; font-weight: 600; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--sofka-orange);
+    margin-bottom: 16px;
+  }
+
+  /* ── RECOMMENDATION BANNER ──────────────────── */
+  .recommendation {
+    background: linear-gradient(135deg, rgba(252,116,0,0.12) 0%, rgba(252,116,0,0.05) 100%);
+    border: 1px solid rgba(252,116,0,0.3);
+    border-radius: var(--radius);
+    padding: 24px; margin-bottom: 20px;
+    position: relative; overflow: hidden;
+  }
+  .recommendation::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--sofka-orange), var(--sofka-orange-light));
+  }
+  .rec-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--sofka-orange); color: #fff;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    text-transform: uppercase; padding: 4px 10px; border-radius: 20px;
+    margin-bottom: 12px;
+  }
+  .rec-winner { font-size: 22px; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.5px; }
+  .rec-reason { font-size: 14px; color: rgba(240,240,242,0.8); line-height: 1.6; }
+
+  /* ── COMPARISON TABLE ────────────────────────── */
+  .table-wrap { overflow-x: auto; }
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead th {
+    text-align: left; padding: 12px 16px;
+    background: rgba(252,116,0,0.08);
+    border-bottom: 1px solid rgba(252,116,0,0.2);
+    font-weight: 600; font-size: 12px;
+    letter-spacing: 0.3px; white-space: nowrap;
+  }
+  thead th:first-child { color: var(--sofka-muted); }
+  thead th:not(:first-child) { color: var(--sofka-orange); }
+  tbody tr { border-bottom: 1px solid var(--sofka-border); transition: var(--transition); }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+  tbody td { padding: 12px 16px; vertical-align: top; line-height: 1.5; }
+  tbody td:first-child { color: var(--sofka-muted); font-weight: 500; font-size: 12px; }
+
+  .badge-best {
+    display: inline-block; background: rgba(46,204,113,0.15);
+    color: var(--sofka-success); border: 1px solid rgba(46,204,113,0.3);
+    font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px;
+    letter-spacing: 0.5px; text-transform: uppercase; margin-left: 6px;
+  }
+  .badge-risk {
+    display: inline-block; background: rgba(231,76,60,0.12);
+    color: var(--sofka-danger); border: 1px solid rgba(231,76,60,0.25);
+    font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px;
+    letter-spacing: 0.5px; text-transform: uppercase; margin-left: 6px;
+  }
+  .badge-warn {
+    display: inline-block; background: rgba(243,156,18,0.12);
+    color: var(--sofka-warn); border: 1px solid rgba(243,156,18,0.25);
+    font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px;
+    letter-spacing: 0.5px; text-transform: uppercase; margin-left: 6px;
+  }
+
+  /* ── SCORE BARS ─────────────────────────────── */
+  .scores-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+  }
+  .score-item { display: flex; flex-direction: column; gap: 6px; }
+  .score-header { display: flex; justify-content: space-between; font-size: 13px; }
+  .score-name { font-weight: 600; }
+  .score-val { color: var(--sofka-orange); font-weight: 700; font-family: 'DM Mono', monospace; }
+  .score-track {
+    height: 6px; background: var(--sofka-border); border-radius: 3px; overflow: hidden;
+  }
+  .score-fill {
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, var(--sofka-orange), var(--sofka-orange-light));
+    transition: width 1s cubic-bezier(0.4,0,0.2,1);
+  }
+  .score-subname { font-size: 11px; color: var(--sofka-muted); }
+
+  /* ── ALERTS ─────────────────────────────────── */
+  .alerts-list { display: flex; flex-direction: column; gap: 10px; }
+  .alert-item {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 14px; border-radius: 8px;
+    font-size: 13px; line-height: 1.5;
+  }
+  .alert-item.warn { background: rgba(243,156,18,0.08); border: 1px solid rgba(243,156,18,0.2); color: #f5d87a; }
+  .alert-item.risk { background: rgba(231,76,60,0.08); border: 1px solid rgba(231,76,60,0.2); color: #f0908a; }
+  .alert-item.info { background: rgba(52,152,219,0.08); border: 1px solid rgba(52,152,219,0.2); color: #8ec5f5; }
+  .alert-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+  /* ── ERROR ───────────────────────────────────── */
+  .error-box {
+    background: rgba(231,76,60,0.08); border: 1px solid rgba(231,76,60,0.25);
+    border-radius: var(--radius); padding: 20px; margin-top: 16px;
+    font-size: 14px; color: #f0908a; line-height: 1.6;
+  }
+
+  /* ── UTIL ────────────────────────────────────── */
+  .divider { height: 1px; background: var(--sofka-border); margin: 32px 0; }
+  .hidden { display: none !important; }
+  .mt-24 { margin-top: 24px; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+  .results-section { animation: slideIn 0.4s ease; }
+
+  /* ── INTRO HERO ──────────────────────────────── */
+  .hero {
+    text-align: center;
+    padding: 48px 0 40px;
+    margin-bottom: 8px;
+  }
+  .hero-eyebrow {
+    font-size: 11px; font-weight: 600; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--sofka-orange); margin-bottom: 16px;
+  }
+  .hero-title {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700; letter-spacing: -1.5px; line-height: 1.1;
+    margin-bottom: 16px;
+  }
+  .hero-title span { color: var(--sofka-orange); }
+  .hero-sub { font-size: 15px; color: var(--sofka-muted); max-width: 520px; margin: 0 auto; line-height: 1.6; }
+
+  /* ── STEPS ───────────────────────────────────── */
+  .steps {
+    display: grid; grid-template-columns: repeat(3,1fr); gap: 16px;
+    margin-bottom: 40px;
+  }
+  @media (max-width: 640px) { .steps { grid-template-columns: 1fr; } }
+  .step {
+    background: var(--sofka-card); border: 1px solid var(--sofka-border);
+    border-radius: var(--radius); padding: 20px;
+  }
+  .step-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--sofka-orange-dim); color: var(--sofka-orange);
+    font-weight: 700; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 10px;
+  }
+  .step-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .step-desc { font-size: 12px; color: var(--sofka-muted); line-height: 1.5; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">S_</div>
+    <div class="logo-text">sofka<span>.</span>cotiza</div>
+  </div>
+  <div class="header-badge">IA · Compras</div>
+</header>
+
+<main>
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-eyebrow">Powered by Claude AI</div>
+    <h1 class="hero-title">Analiza <span>cotizaciones</span><br>en segundos</h1>
+    <p class="hero-sub">Carga entre 2 y 5 PDFs de proveedores. La IA extrae, compara y recomienda la mejor opción automáticamente.</p>
+  </div>
+
+  <!-- STEPS -->
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-title">Carga los PDFs</div>
+      <div class="step-desc">Arrastra o selecciona entre 2 y 5 cotizaciones. Nacional o internacional, cualquier formato.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-title">La IA analiza</div>
+      <div class="step-desc">Claude lee cada cotización, extrae datos clave y genera un cuadro comparativo inteligente.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-title">Exporta en PPT</div>
+      <div class="step-desc">Descarga el análisis como presentación editable con la identidad visual de Sofka.</div>
+    </div>
+  </div>
+
+  <!-- UPLOAD -->
+  <div class="section-label">Cargar Cotizaciones</div>
+  <div class="upload-area" id="uploadArea">
+    <input type="file" id="fileInput" accept=".pdf" multiple>
+    <div class="upload-icon">📄</div>
+    <div class="upload-title">Arrastra tus PDFs aquí o haz clic para seleccionar</div>
+    <div class="upload-sub">Mínimo 2 · Máximo 5 archivos PDF · Español o inglés</div>
+  </div>
+
+  <div class="files-grid" id="filesGrid"></div>
+
+  <div id="errorBox" class="error-box hidden"></div>
+
+  <button class="analyze-btn" id="analyzeBtn" disabled>
+    <span>⚡</span>
+    <span id="analyzeBtnText">Analizar Cotizaciones</span>
+  </button>
+
+  <div id="progressWrap" class="hidden mt-24">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    <div class="progress-label"><div class="spinner"></div><span id="progressLabel">Procesando...</span></div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results" class="results-section hidden"></div>
+</main>
+
+<script>
+// ── STATE ────────────────────────────────────────
+const state = { files: [], analysisData: null };
+
+// ── DOM REFS ─────────────────────────────────────
+const uploadArea = document.getElementById('uploadArea');
+const fileInput  = document.getElementById('fileInput');
+const filesGrid  = document.getElementById('filesGrid');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const analyzeBtnText = document.getElementById('analyzeBtnText');
+const progressWrap = document.getElementById('progressWrap');
+const progressFill = document.getElementById('progressFill');
+const progressLabel = document.getElementById('progressLabel');
+const resultsEl  = document.getElementById('results');
+const errorBox   = document.getElementById('errorBox');
+
+// ── DRAG & DROP ──────────────────────────────────
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('drag-over'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault(); uploadArea.classList.remove('drag-over');
+  handleFiles([...e.dataTransfer.files].filter(f => f.type === 'application/pdf'));
+});
+fileInput.addEventListener('change', () => handleFiles([...fileInput.files]));
+
+function handleFiles(newFiles) {
+  errorBox.classList.add('hidden');
+  const combined = [...state.files];
+  for (const f of newFiles) {
+    if (combined.length >= 5) break;
+    if (!combined.find(x => x.name === f.name)) combined.push(f);
+  }
+  state.files = combined;
+  renderFiles();
+}
+
+function renderFiles() {
+  filesGrid.innerHTML = '';
+  state.files.forEach((f, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'file-chip';
+    chip.innerHTML = `
+      <div class="pdf-icon">📄</div>
+      <div class="file-info">
+        <div class="file-name" title="${f.name}">${f.name}</div>
+        <div class="file-size">${(f.size/1024).toFixed(0)} KB</div>
+      </div>
+      <button class="file-remove" data-i="${i}" title="Eliminar">✕</button>
+    `;
+    filesGrid.appendChild(chip);
+  });
+  filesGrid.querySelectorAll('.file-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.files.splice(+btn.dataset.i, 1);
+      renderFiles();
+    });
+  });
+  analyzeBtn.disabled = state.files.length < 2;
+}
+
+// ── FILE TO BASE64 ───────────────────────────────
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+// ── SET PROGRESS ─────────────────────────────────
+function setProgress(pct, label) {
+  progressFill.style.width = pct + '%';
+  progressLabel.textContent = label;
+}
+
+// ── ANALYZE ──────────────────────────────────────
+analyzeBtn.addEventListener('click', async () => {
+  if (state.files.length < 2) return;
+  errorBox.classList.add('hidden');
+  resultsEl.classList.add('hidden');
+  analyzeBtn.disabled = true;
+  analyzeBtnText.textContent = 'Analizando...';
+  progressWrap.classList.remove('hidden');
+  setProgress(5, 'Preparando documentos...');
+
+  try {
+    // Convert files to base64
+    const base64Files = [];
+    for (let i = 0; i < state.files.length; i++) {
+      setProgress(5 + (i / state.files.length) * 25, `Leyendo ${state.files[i].name}...`);
+      base64Files.push(await fileToBase64(state.files[i]));
+    }
+
+    setProgress(35, 'Enviando a Claude para análisis...');
+
+    const fileNames = state.files.map(f => f.name);
+
+    // Build messages with PDFs
+    const contentBlocks = [];
+    for (let i = 0; i < base64Files.length; i++) {
+      contentBlocks.push({
+        type: 'text',
+        text: `=== COTIZACIÓN ${i+1}: "${fileNames[i]}" ===`
+      });
+      contentBlocks.push({
+        type: 'document',
+        source: { type: 'base64', media_type: 'application/pdf', data: base64Files[i] }
+      });
+    }
+
+    contentBlocks.push({
+      type: 'text',
+      text: `Analiza estas ${state.files.length} cotizaciones y responde SOLO con JSON válido, sin texto adicional ni markdown.
+
+Estructura requerida:
+{"tipo":"bien|servicio","categoria":"string","moneda_base":"COP|USD|EUR","ganador":"nombre","razon_ganador":"2-3 oraciones","alternativa":"nombre","razon_alternativa":"1 oración","resumen_ejecutivo":"3-4 oraciones","alertas":[{"tipo":"warn|risk|info","mensaje":"string"}],"proveedores":[{"nombre":"string","precio_total":"valor+moneda","impuestos":"string","tiempo_entrega":"string","condiciones_pago":"string","vigencia":"string","garantia":"string","alcance":"string","especificaciones":{},"score_precio":0,"score_calidad":0,"score_condiciones":0,"score_total":0,"fortalezas":["string"],"debilidades":["string"]}]}
+
+Reglas: scores 0-100 (precio=más económico, calidad=mejores specs, condiciones=mejores términos comerciales). score_total=precio*0.4+calidad*0.4+condiciones*0.2. especificaciones=atributos técnicos clave. Info faltante="No especificado". Idioma automático.`
+    });
+
+    setProgress(40, 'Claude está leyendo y comparando los documentos...');
+
+    // Log para diagnóstico
+    console.log('[DEBUG] Iniciando fetch, bloques:', contentBlocks.length);
+    contentBlocks.forEach((b,i) => console.log('[DEBUG] bloque',i,'tipo:',b.type, b.source ? 'size:'+b.source.data?.length : ''));
+
+    const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 3500,
+        messages: [{ role: 'user', content: optimizarContentBlocks(contentBlocks) }]
+      })
+    });
+
+    console.log('[DEBUG] HTTP status:', apiRes.status, apiRes.statusText);
+    setProgress(80, 'Procesando resultados...');
+
+    const responseText = await apiRes.text();
+    console.log('[DEBUG] Raw response (primeros 500 chars):', responseText.substring(0, 500));
+
+    if (!apiRes.ok) {
+      let msg = `Error HTTP ${apiRes.status}`;
+      try { msg = JSON.parse(responseText).error?.message || msg; } catch(_) {}
+      throw new Error(msg);
+    }
+
+    const data = JSON.parse(responseText);
+    const rawText = (data.content || []).find(b => b.type === 'text')?.text || '';
+    console.log('[DEBUG] stop_reason:', data.stop_reason, '| texto:', rawText.substring(0,200));
+
+    if (!rawText) throw new Error('La API no devolvió contenido. Revisa la consola del navegador.');
+    if (data.stop_reason === 'max_tokens') throw new Error('Respuesta demasiado larga. Intenta con menos proveedores o PDFs más cortos.');
+
+    let jsonStr = rawText.trim();
+    const i1 = jsonStr.indexOf('{');
+    const i2 = jsonStr.lastIndexOf('}');
+    if (i1 >= 0 && i2 > i1) jsonStr = jsonStr.substring(i1, i2 + 1);
+
+    const analysis = JSON.parse(jsonStr);
+
+    setProgress(95, 'Generando visualización...');
+    state.analysisData = analysis;
+    renderResults(analysis);
+    setProgress(100, 'Listo');
+
+    setTimeout(() => {
+      progressWrap.classList.add('hidden');
+      analyzeBtnText.textContent = 'Analizar nuevamente';
+      analyzeBtn.disabled = false;
+    }, 800);
+
+  } catch (err) {
+    // Always reset UI — no matter what failed
+    progressWrap.classList.add('hidden');
+    progressFill.style.width = '0%';
+    analyzeBtn.disabled = false;
+    analyzeBtnText.textContent = 'Analizar Cotizaciones';
+    errorBox.classList.remove('hidden');
+    errorBox.textContent = '⚠️ ' + (err.message || 'Ocurrió un error inesperado. Verifica que los PDFs sean legibles e intenta de nuevo.');
+    console.error('[Sofka Cotizaciones]', err);
+  }
+});
+
+// ── RENDER RESULTS ───────────────────────────────
+function renderResults(d) {
+  const provs = d.proveedores || [];
+  const allSpecs = new Set();
+  provs.forEach(p => Object.keys(p.especificaciones || {}).forEach(k => allSpecs.add(k)));
+
+  // Score bars HTML
+  const scoreBars = provs.map(p => `
+    <div class="score-item">
+      <div class="score-header">
+        <span class="score-name">${p.nombre}</span>
+        <span class="score-val">${p.score_total}/100</span>
+      </div>
+      <div class="score-track"><div class="score-fill" style="width:${p.score_total}%"></div></div>
+      <span class="score-subname">Precio ${p.score_precio} · Calidad ${p.score_calidad} · Condiciones ${p.score_condiciones}</span>
+    </div>
+  `).join('');
+
+  // Comparison table
+  const stdCols = ['precio_total','moneda','impuestos','tiempo_entrega','condiciones_pago','vigencia'];
+  const specCols = [...allSpecs].slice(0,6);
+  const allCols = [...stdCols, ...specCols];
+
+  const colLabels = {
+    precio_total:'Precio Total', moneda:'Moneda', impuestos:'Impuestos',
+    tiempo_entrega:'T. Entrega', condiciones_pago:'Pago', vigencia:'Vigencia'
+  };
+
+  const tableHeaders = `<tr><th>Campo</th>${provs.map(p => `<th>${p.nombre}${p.nombre===d.ganador?'<span class="badge-best">★ TOP</span>':''}</th>`).join('')}</tr>`;
+
+  const tableRows = allCols.map(col => {
+    const label = colLabels[col] || col;
+    const cells = provs.map(p => {
+      const val = p[col] || (p.especificaciones||{})[col] || '—';
+      return `<td>${val}</td>`;
+    }).join('');
+    return `<tr><td>${label}</td>${cells}</tr>`;
+  }).join('');
+
+  // Alerts
+  const alertsHTML = (d.alertas||[]).map(a => `
+    <div class="alert-item ${a.tipo}">
+      <span class="alert-icon">${a.tipo==='risk'?'🚨':a.tipo==='warn'?'⚠️':'ℹ️'}</span>
+      <span>${a.mensaje}</span>
+    </div>
+  `).join('');
+
+  resultsEl.innerHTML = `
+    <div class="results-header">
+      <div>
+        <div class="section-label">Análisis completado · ${provs.length} cotizaciones</div>
+        <div class="results-title">Cuadro Comparativo — ${d.categoria||'Cotización'}</div>
+      </div>
+      <div class="results-actions">
+        <button class="reset-btn" id="resetBtn">↺ Nueva Cotización</button>
+        <button class="export-btn" id="exportBtn">⬇ Exportar PowerPoint</button>
+      </div>
+    </div>
+
+    <!-- RECOMMENDATION -->
+    <div class="recommendation">
+      <div class="rec-badge">⭐ Recomendación</div>
+      <div class="rec-winner">${d.ganador}</div>
+      <div class="rec-reason">${d.razon_ganador}</div>
+      ${d.alternativa ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(252,116,0,0.2);font-size:13px;color:var(--sofka-muted)">
+        <strong style="color:var(--sofka-text)">Alternativa viable:</strong> ${d.alternativa} — ${d.razon_alternativa}
+      </div>` : ''}
+    </div>
+
+    <!-- SCORES -->
+    <div class="analysis-card">
+      <h3>Puntuación General</h3>
+      <div class="scores-grid">${scoreBars}</div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="analysis-card">
+      <h3>Cuadro Comparativo</h3>
+      <div class="table-wrap">
+        <table><thead>${tableHeaders}</thead><tbody>${tableRows}</tbody></table>
+      </div>
+    </div>
+
+    <!-- RESUMEN -->
+    <div class="analysis-card">
+      <h3>Resumen Ejecutivo</h3>
+      <p style="font-size:14px;line-height:1.75;color:rgba(240,240,242,0.85)">${d.resumen_ejecutivo}</p>
+    </div>
+
+    <!-- ALERTS -->
+    ${alertsHTML ? `<div class="analysis-card"><h3>Alertas y Riesgos</h3><div class="alerts-list">${alertsHTML}</div></div>` : ''}
+  `;
+
+  resultsEl.classList.remove('hidden');
+  document.getElementById('exportBtn').addEventListener('click', exportPPTX);
+  document.getElementById('resetBtn').addEventListener('click', resetApp);
+  resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── RESET APP ────────────────────────────────────
+function resetApp() {
+  state.files = [];
+  state.analysisData = null;
+  filesGrid.innerHTML = '';
+  fileInput.value = '';
+  resultsEl.classList.add('hidden');
+  resultsEl.innerHTML = '';
+  errorBox.classList.add('hidden');
+  progressWrap.classList.add('hidden');
+  progressFill.style.width = '0%';
+  analyzeBtn.disabled = true;
+  analyzeBtnText.textContent = 'Analizar Cotizaciones';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── EXPORT PPTX ──────────────────────────────────
+function exportPPTX() {
+  const d = state.analysisData;
+  if (!d) return;
+
+  if (typeof PptxGenJS === 'undefined') {
+    alert('La librería de PowerPoint aún se está cargando. Espera unos segundos e intenta de nuevo.\n\nSi el error persiste, verifica tu conexión a internet.');
+    return;
+  }
+
+  const pptx = new PptxGenJS();
+  pptx.layout = 'LAYOUT_WIDE';
+
+  // Sofka colors
+  const ORANGE  = 'FC7400';
+  const DARK    = '0E0E0F';
+  const CARD    = '1E1E21';
+  const WHITE   = 'FFFFFF';
+  const MUTED   = '8A8A96';
+  const SUCCESS = '2ECC71';
+  const LIGHT   = 'F0F0F2';
+
+  // Helper: add slide background
+  function bgDark(slide) {
+    slide.addShape(pptx.ShapeType.rect, { x:0,y:0,w:'100%',h:'100%', fill:{color:DARK} });
+    // Subtle orange accent bar top
+    slide.addShape(pptx.ShapeType.rect, { x:0,y:0,w:'100%',h:0.06, fill:{color:ORANGE} });
+    // Sofka wordmark bottom-right
+    slide.addText('sofka_', {
+      x:8.8,y:6.9,w:1.5,h:0.3,
+      fontSize:11, bold:true, color:ORANGE, align:'right'
+    });
+  }
+
+  const provs = d.proveedores;
+  const nP = provs.length;
+
+  // ══════════════════════════════════════════════════════════
+  // SLIDE 1  — Layout precisamente calculado
+  // ══════════════════════════════════════════════════════════
+  // Columna izquierda: 0–3.3"   Columna derecha: 3.5–9.9"
+  // Filas (columna derecha):
+  //   [0.1 – 0.35]  label "RESUMEN EJECUTIVO"
+  //   [0.38 – 1.58] texto resumen  (1.2" h)
+  //   [1.62]        divisor
+  //   [1.70 – 1.95] label "PUNTUACIÓN"
+  //   [2.00 – 6.85] score cards     (4.85" h)
+  //   [6.9]         logo sofka
+  // Columna izquierda:
+  //   [0.1 – 0.45]  Sofka bar left
+  //   [0.5 – 1.8]   Título (1.3")
+  //   [1.85 – 2.2]  Categoría + línea
+  //   [2.25 – 2.55] metadata
+  //   [2.65 – 6.60] Box recomendación (3.95")
+  //   [6.65]        Alt text
+
+  const s1 = pptx.addSlide();
+  bgDark(s1);
+
+  // Left column background
+  s1.addShape(pptx.ShapeType.rect, {x:0,y:0,w:3.3,h:SH, fill:{color:CARD}});
+  s1.addShape(pptx.ShapeType.rect, {x:0,y:0,w:0.1,h:SH, fill:{color:ORANGE}});
+
+  // Left: title
+  s1.addText('ANÁLISIS DE\nCOTIZACIONES', {x:0.22,y:0.5,w:3.0,h:1.3, fontSize:22, bold:true, color:WHITE, lineSpacingMultiple:1.1, valign:'top'});
+
+  // Left: category + divider
+  s1.addText(d.categoria||'Comparativo', {x:0.22,y:1.88,w:2.9,h:0.28, fontSize:10, color:ORANGE, valign:'middle'});
+  s1.addShape(pptx.ShapeType.rect, {x:0.22,y:2.2,w:0.85,h:0.04, fill:{color:ORANGE}});
+
+  // Left: metadata
+  s1.addText(nP+' proveedores  ·  '+(d.tipo||'').toUpperCase()+'  ·  '+(d.moneda_base||''),
+    {x:0.22,y:2.28,w:2.9,h:0.25, fontSize:8, color:MUTED, valign:'middle'});
+
+  // Left: recommendation box  (y:2.60 → y:6.55, h=3.95)
+  const recBoxY = 2.60, recBoxH = 3.95;
+  s1.addShape(pptx.ShapeType.rect, {x:0.15,y:recBoxY,w:3.0,h:recBoxH, fill:{color:'1A1200'}, line:{color:ORANGE,width:1}, rectRadius:0.06});
+  s1.addShape(pptx.ShapeType.rect, {x:0.15,y:recBoxY,w:3.0,h:0.05, fill:{color:ORANGE}});
+  s1.addText('★ RECOMENDADO', {x:0.28,y:recBoxY+0.1,w:2.7,h:0.26, fontSize:8, bold:true, color:ORANGE, charSpacing:1, valign:'middle'});
+  s1.addText(d.ganador||'', {x:0.28,y:recBoxY+0.42,w:2.7,h:0.5, fontSize:15, bold:true, color:WHITE, wrap:true, valign:'top'});
+  s1.addText(d.razon_ganador||'', {x:0.28,y:recBoxY+0.98,w:2.7,h:1.35, fontSize:8.5, color:LIGHT, wrap:true, lineSpacingMultiple:1.4, valign:'top'});
+
+  // divider inside box
+  s1.addShape(pptx.ShapeType.rect, {x:0.28,y:recBoxY+2.42,w:2.55,h:0.03, fill:{color:'2A2A2E'}});
+
+  // Alternativa inside box
+  s1.addText('ALTERNATIVA VIABLE', {x:0.28,y:recBoxY+2.5,w:2.7,h:0.2, fontSize:7, bold:true, color:MUTED, charSpacing:0.8});
+  s1.addText((d.alternativa||'—')+': '+(d.razon_alternativa||''), {x:0.28,y:recBoxY+2.72,w:2.7,h:1.1, fontSize:7.5, color:MUTED, wrap:true, lineSpacingMultiple:1.3, valign:'top'});
+
+  // Right: resumen ejecutivo
+  const RX = 3.50, RW = SW - RX - 0.15;
+  s1.addText('RESUMEN EJECUTIVO', {x:RX,y:0.12,w:RW,h:0.22, fontSize:7.5, bold:true, color:ORANGE, charSpacing:1.5});
+  s1.addText(d.resumen_ejecutivo||'', {x:RX,y:0.38,w:RW,h:1.25, fontSize:9.5, color:LIGHT, wrap:true, lineSpacingMultiple:1.5, valign:'top'});
+  s1.addShape(pptx.ShapeType.rect, {x:RX,y:1.68,w:RW,h:0.03, fill:{color:'2A2A2E'}});
+
+  // Right: score cards header
+  s1.addText('PUNTUACIÓN POR PROVEEDOR', {x:RX,y:1.76,w:RW,h:0.22, fontSize:7.5, bold:true, color:MUTED, charSpacing:1.2});
+
+  // Right: score cards  y:2.02 → y:6.82  h=4.8
+  const cardAreaY = 2.02, cardAreaH = 4.80;
+  const gap = 0.1;
+  const cW = (RW - gap*(nP-1)) / nP;
+
+  provs.forEach(function(p, i) {
+    const cx = RX + i*(cW+gap);
+    const cy = cardAreaY;
+    const isW = p.nombre === d.ganador;
+
+    // card bg
+    s1.addShape(pptx.ShapeType.rect, {x:cx,y:cy,w:cW,h:cardAreaH,
+      fill:{color:isW?'1A1200':CARD}, line:{color:isW?ORANGE:'2A2A2E', width:isW?1.5:0.5}, rectRadius:0.07});
+    if (isW) s1.addShape(pptx.ShapeType.rect, {x:cx,y:cy,w:cW,h:0.05, fill:{color:ORANGE}});
+
+    // name
+    s1.addText(p.nombre+(isW?' ★':''), {x:cx+0.1,y:cy+0.12,w:cW-0.2,h:0.38,
+      fontSize:isW?10:9, bold:true, color:isW?ORANGE:WHITE, wrap:true, valign:'top'});
+
+    // price
+    s1.addText(p.precio_total||'', {x:cx+0.1,y:cy+0.58,w:cW-0.2,h:0.35,
+      fontSize:11, bold:true, color:ORANGE, valign:'middle'});
+
+    // score bars — 3 items, each takes 0.9" (label 0.2 + bar 0.12 + gap 0.58)
+    const barStartY = cy + 1.05;
+    const barSlotH  = (cardAreaH - 1.05 - 0.45) / 3;  // remaining space / 3 bars
+    const scores = [{k:'Precio',v:p.score_precio||0},{k:'Calidad',v:p.score_calidad||0},{k:'Condic.',v:p.score_condiciones||0}];
+    scores.forEach(function(sc, si) {
+      const by = barStartY + si*barSlotH;
+      const bw = cW - 0.2;
+      s1.addText(sc.k, {x:cx+0.1,y:by,w:bw*0.6,h:0.2, fontSize:7.5, color:MUTED, valign:'middle'});
+      s1.addText(String(sc.v), {x:cx+0.1+bw*0.6,y:by,w:bw*0.4,h:0.2, fontSize:7.5, bold:true, color:WHITE, align:'right', valign:'middle'});
+      s1.addShape(pptx.ShapeType.rect, {x:cx+0.1,y:by+0.22,w:bw,h:0.1, fill:{color:'2A2A2E'}});
+      const fillW = Math.max((bw*(sc.v/100)),0.02);
+      s1.addShape(pptx.ShapeType.rect, {x:cx+0.1,y:by+0.22,w:fillW,h:0.1, fill:{color:isW?ORANGE:'4A9E6A'}});
+    });
+
+    // total score
+    s1.addShape(pptx.ShapeType.rect, {x:cx+0.1,y:cy+cardAreaH-0.38,w:cW-0.2,h:0.03, fill:{color:'2A2A2E'}});
+    s1.addText('TOTAL: '+(p.score_total||0)+'/100', {x:cx+0.1,y:cy+cardAreaH-0.32,w:cW-0.2,h:0.25,
+      fontSize:8.5, bold:true, color:isW?ORANGE:MUTED, valign:'middle'});
+  });
+
+  // ══════════════════════════════════════════════════════════
+  // SLIDE 2 — Tabla + Fortalezas/Debilidades + Alertas
+  // ══════════════════════════════════════════════════════════
+  // Zones (total height 7.5"):
+  //   header label:    0.05 – 0.35   (0.30)
+  //   divider:         0.35
+  //   table:           0.38 – 4.00   (3.62" → rows fit)
+  //   divider:         4.03
+  //   FD label:        4.07 – 4.30   (0.23)
+  //   FD cards:        4.33 – 6.48   (2.15)
+  //   divider:         6.50
+  //   alerts:          6.53 – 7.08   (0.55)
+  //   sofka logo:      7.10 – 7.40
+
+  const s2 = pptx.addSlide();
+  bgDark(s2);
+
+  const MX = 0.35;  // margin x
+  const CW2 = SW - MX*2;  // content width = 9.3"
+
+  // Header
+  s2.addText('CUADRO COMPARATIVO  ·  ANÁLISIS  ·  ALERTAS',
+    {x:MX,y:0.10,w:CW2,h:0.24, fontSize:8, bold:true, color:ORANGE, charSpacing:1.5});
+  s2.addShape(pptx.ShapeType.rect, {x:MX,y:0.36,w:CW2,h:0.03, fill:{color:'2A2A2E'}});
+
+  // TABLE: rows
+  const stdRows = ['precio_total','impuestos','tiempo_entrega','condiciones_pago','vigencia','garantia'];
+  const rowLabels = {precio_total:'Precio',impuestos:'Impuestos',tiempo_entrega:'Entrega',condiciones_pago:'Pago',vigencia:'Vigencia',garantia:'Garantía'};
+  const allSpecs = new Set();
+  provs.forEach(p => Object.keys(p.especificaciones||{}).forEach(k => allSpecs.add(k)));
+  const specRows = [...allSpecs].slice(0,4);
+  const rows = [...stdRows, ...specRows];
+
+  const tblData = [];
+  // header row
+  const hRow = [{text:'Campo', options:{bold:true, color:ORANGE, fill:{color:'1A1200'}, fontSize:8.5, valign:'middle'}}];
+  provs.forEach(p => hRow.push({
+    text: p.nombre+(p.nombre===d.ganador?' ★':''),
+    options:{bold:true, color:p.nombre===d.ganador?ORANGE:WHITE, fill:{color:'1A1200'}, fontSize:8.5, valign:'middle'}
+  }));
+  tblData.push(hRow);
+
+  rows.forEach(row => {
+    const dr = [{text:rowLabels[row]||row, options:{bold:true, color:MUTED, fill:{color:CARD}, fontSize:8, valign:'middle'}}];
+    provs.forEach(p => {
+      const val = p[row]||(p.especificaciones||{})[row]||'—';
+      dr.push({text:String(val), options:{color:LIGHT, fill:{color:DARK}, fontSize:8, valign:'middle'}});
+    });
+    tblData.push(dr);
+  });
+
+  // Table height: 10 rows × 0.34" = 3.40"
+  const tblH = 3.40;
+  const tblY = 0.40;
+  // Dynamic row height: cap table so FD + alerts always fit below
+  // Available height for table = SH - header(0.42) - FD_label(0.28) - FD_cards(1.90) - alerts(0.85) - gaps(0.36) - logo(0.45) = 3.24"
+  // Row height shrinks if many rows, min 0.24"
+  var maxTblH = 3.24;
+  var rowCount = tblData.length;  // includes header
+  var dynRowH = Math.max(Math.min(maxTblH / rowCount, 0.34), 0.24);
+  var actualTblH = dynRowH * rowCount;
+  actualTblH = Math.min(actualTblH, maxTblH);
+
+  s2.addTable(tblData, {
+    x:MX, y:tblY, w:CW2, h:actualTblH,
+    rowH:dynRowH,
+    border:{type:'solid', color:'2A2A2E', pt:0.5},
+    fontFace:'Arial', align:'left', valign:'middle', margin:0.07
+  });
+
+  // Divider after table — position driven by actual table height
+  var divY1 = tblY + actualTblH + 0.07;
+  s2.addShape(pptx.ShapeType.rect, {x:MX,y:divY1,w:CW2,h:0.03, fill:{color:'2A2A2E'}});
+
+  // FD section header
+  var fdLabelY = divY1 + 0.07;
+  s2.addText('FORTALEZAS  Y  DEBILIDADES', {x:MX,y:fdLabelY,w:CW2,h:0.22,
+    fontSize:7.5, bold:true, color:MUTED, charSpacing:1.2});
+
+  // FD cards — remaining space minus alerts(0.85) and gaps
+  var fdY   = fdLabelY + 0.26;
+  var spaceForAlertsAndLogo = 0.85 + 0.07 + 0.03 + 0.07 + 0.42;  // altH+gap+divider+gap+logo
+  var fdH   = Math.max(SH - fdY - spaceForAlertsAndLogo, 1.50);
+  fdH = Math.min(fdH, 2.10);  // cap so it never overlaps alerts
+  var fdGap = 0.10;
+  var fdW   = (CW2 - fdGap*(nP-1)) / nP;
+
+  provs.forEach(function(p, i) {
+    const fx = MX + i*(fdW+fdGap);
+    const isW = p.nombre === d.ganador;
+    s2.addShape(pptx.ShapeType.rect, {x:fx,y:fdY,w:fdW,h:fdH,
+      fill:{color:isW?'1A1200':CARD}, line:{color:isW?ORANGE:'2A2A2E',width:isW?1:0.5}, rectRadius:0.06});
+    if (isW) s2.addShape(pptx.ShapeType.rect, {x:fx,y:fdY,w:fdW,h:0.05, fill:{color:ORANGE}});
+
+    s2.addText(p.nombre+(isW?' ★':''), {x:fx+0.1,y:fdY+0.1,w:fdW-0.2,h:0.3,
+      fontSize:8.5, bold:true, color:isW?ORANGE:WHITE, wrap:true, valign:'middle'});
+
+    const slotH = (fdH - 0.5) / 2;  // ~0.70 each half
+    const pros = (p.fortalezas||[]).slice(0,2).map(f=>'✓ '+f).join('\n');
+    const cons = (p.debilidades||[]).slice(0,2).map(f=>'✗ '+f).join('\n');
+    if (pros) s2.addText(pros, {x:fx+0.1,y:fdY+0.46,w:fdW-0.2,h:slotH,
+      fontSize:7.5, color:'7EE89A', wrap:true, lineSpacingMultiple:1.3, valign:'top'});
+    if (cons) s2.addText(cons, {x:fx+0.1,y:fdY+0.46+slotH+0.04,w:fdW-0.2,h:slotH,
+      fontSize:7.5, color:'F08080', wrap:true, lineSpacingMultiple:1.3, valign:'top'});
+  });
+
+  // Divider before alerts — dynamic position
+  var divY2 = fdY + fdH + 0.06;
+  s2.addShape(pptx.ShapeType.rect, {x:MX,y:divY2,w:CW2,h:0.03, fill:{color:'2A2A2E'}});
+
+  // Alerts row — fill remaining space to bottom minus logo
+  var altY  = divY2 + 0.06;
+  var altH  = Math.max(SH - altY - 0.42, 0.60);  // 0.42 = logo area
+  altH = Math.min(altH, 0.85);
+  const alerts = (d.alertas||[]).slice(0,3);
+  if (alerts.length > 0) {
+    const altGap = 0.10;
+    const altW = (CW2 - altGap*(alerts.length-1)) / alerts.length;
+    alerts.forEach(function(a, i) {
+      const ax = MX + i*(altW+altGap);
+      const bgC = a.tipo==='risk'?'1F0B0B':a.tipo==='warn'?'1A1500':'0B101A';
+      const txC = a.tipo==='risk'?'F08080':a.tipo==='warn'?'F5D87A':'8EC5F5';
+      const icon = a.tipo==='risk'?'⚠ ':a.tipo==='warn'?'! ':'i ';
+      s2.addShape(pptx.ShapeType.rect, {x:ax,y:altY,w:altW,h:altH, fill:{color:bgC}, rectRadius:0.06});
+      s2.addText(icon+a.mensaje, {x:ax+0.1,y:altY+0.05,w:altW-0.2,h:altH-0.1,
+        fontSize:7.5, color:txC, wrap:true, lineSpacingMultiple:1.3, valign:'top'});
+    });
+  }
+
+    pptx.writeFile({ fileName: 'Sofka_Analisis_'+(d.categoria||'Cotizaciones').replace(/\s+/g,'_')+'.pptx' });
+}
+</script>
+
+<script>
+function limpiarTexto(texto){
+  if(!texto) return "";
+  texto = texto.replace(/\s+/g," ").trim();
+  if(texto.length > 6000){
+    texto = texto.substring(0,6000);
+  }
+  return texto;
+}
+
+function optimizarContentBlocks(blocks){
+  try{
+    return blocks.map(b=>{
+      if(b.type === "text" && typeof b.text === "string"){
+        return {...b, text: limpiarTexto(b.text)};
+      }
+      return b;
+    });
+  }catch(e){
+    console.warn("Optimización omitida:", e);
+    return blocks;
+  }
+}
+</script>
+
+</body>
+</html>
