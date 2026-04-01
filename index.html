@@ -487,17 +487,14 @@ uploadArea.addEventListener('drop', e => {
 fileInput.addEventListener('change', () => handleFiles([...fileInput.files]));
 
 function handleFiles(newFiles) {
-  // Convertimos a array y filtramos solo PDFs
-  const arr = Array.from(newFiles).filter(f => f.type === 'application/pdf');
-  if (arr.length === 0) return;
-
-  state.files = [...state.files, ...arr].slice(0, 5);
-  renderFiles();
-  
-  // Esto activa el botón si hay 2 o más archivos
-  if (state.files.length >= 2) {
-    analyzeBtn.disabled = false;
+  errorBox.classList.add('hidden');
+  const combined = [...state.files];
+  for (const f of newFiles) {
+    if (combined.length >= 5) break;
+    if (!combined.find(x => x.name === f.name)) combined.push(f);
   }
+  state.files = combined;
+  renderFiles();
 }
 
 function renderFiles() {
@@ -542,62 +539,21 @@ function setProgress(pct, label) {
 
 // ── ANALYZE ──────────────────────────────────────
 analyzeBtn.addEventListener('click', async () => {
- if (state.files.length < 2) return;
+  if (state.files.length < 2) return;
+  errorBox.classList.add('hidden');
+  resultsEl.classList.add('hidden');
+  analyzeBtn.disabled = true;
+  analyzeBtnText.textContent = 'Analizando...';
+  progressWrap.classList.remove('hidden');
+  setProgress(5, 'Preparando documentos...');
 
   try {
-    setLoading(true);
-    const contentBlocks = [];
-
-    // 1. Extraer texto de los PDFs
-    for (const file of state.files) {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let fullText = "";
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        fullText += textContent.items.map(s => s.str).join(" ") + "\n";
-      }
-      contentBlocks.push({ fileName: file.name, text: fullText });
+    // Convert files to base64
+    const base64Files = [];
+    for (let i = 0; i < state.files.length; i++) {
+      setProgress(5 + (i / state.files.length) * 25, `Leyendo ${state.files[i].name}...`);
+      base64Files.push(await fileToBase64(state.files[i]));
     }
-
-    // 2. Llamar al PROXY de Vercel (Sin usar apiKey aquí)
-    const apiRes = await fetch("/api/proxy", { 
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-3-5-sonnet-20240620",
-        max_tokens: 4000,
-        messages: [{
-          role: "user",
-          content: optimizarContentBlocks(contentBlocks)
-        }]
-      })
-    });
-
-    if (!apiRes.ok) {
-      const errorData = await apiRes.json();
-      // Si aquí sale "x-api-key required", el problema está en el panel de Vercel
-      throw new Error(errorData.error || "Error en el servidor");
-    }
-
-    const data = await apiRes.json();
-    const rawText = data.content[0].text;
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    
-    if (jsonMatch) {
-      state.analysisData = JSON.parse(jsonMatch[0]);
-      renderResults(state.analysisData);
-    } else {
-      throw new Error("No se pudo interpretar la respuesta JSON.");
-    }
-
-  } catch (err) {
-    console.error(err);
-    alert("⚠️ " + err.message);
-  } finally {
-    setLoading(false);
-  }
 
     setProgress(35, 'Enviando a Claude para análisis...');
 
@@ -632,10 +588,18 @@ Reglas: scores 0-100 (precio=más económico, calidad=mejores specs, condiciones
     console.log('[DEBUG] Iniciando fetch, bloques:', contentBlocks.length);
     contentBlocks.forEach((b,i) => console.log('[DEBUG] bloque',i,'tipo:',b.type, b.source ? 'size:'+b.source.data?.length : ''));
 
+   const apiKey = localStorage.getItem("CLAUDE_API_KEY");
+
+if (!apiKey || apiKey === "null") {
+  const inputKey = prompt("Introduce tu Claude API Key (se guardará localmente):");
+  if (inputKey) {
+    localStorage.setItem("CLAUDE_API_KEY", inputKey);
+    location.reload();
+  }
   throw new Error("API key missing");
 }
 
-const apiRes = await fetch("/api/proxy", { // <--- AHORA LLAMA A TU PROXY EN VERCEL
+const apiRes = await fetch("/api/proxy", { 
   method: "POST",
   headers: {
     "Content-Type": "application/json"
