@@ -599,7 +599,7 @@ if (!apiKey || apiKey === "null") {
   throw new Error("API key missing");
 }
 
-const apiRes = await fetch("/api/proxy", { // <--- Ahora llamamos a tu puente
+const apiRes = await fetch("/api/proxy", { 
   method: "POST",
   headers: {
     "Content-Type": "application/json"
@@ -610,7 +610,7 @@ const apiRes = await fetch("/api/proxy", { // <--- Ahora llamamos a tu puente
     messages: [
       {
         role: "user",
-        content: optimizarContentBlocks(contentBlocks) // Usa la función que ya tienes en tu código
+        content: optimizarContentBlocks(contentBlocks) 
       }
     ]
   })
