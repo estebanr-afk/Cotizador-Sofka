@@ -588,10 +588,14 @@ Reglas: scores 0-100 (precio=más económico, calidad=mejores specs, condiciones
     console.log('[DEBUG] Iniciando fetch, bloques:', contentBlocks.length);
     contentBlocks.forEach((b,i) => console.log('[DEBUG] bloque',i,'tipo:',b.type, b.source ? 'size:'+b.source.data?.length : ''));
 
-    const apiKey = localStorage.getItem("CLAUDE_API_KEY");
+   const apiKey = localStorage.getItem("CLAUDE_API_KEY");
 
-if (!apiKey) {
-  alert("No se encontró la API Key. Abre la consola (F12) y ejecuta: localStorage.setItem('CLAUDE_API_KEY','TU_API_KEY')");
+if (!apiKey || apiKey === "null") {
+  const inputKey = prompt("Introduce tu Claude API Key (se guardará localmente):");
+  if (inputKey) {
+    localStorage.setItem("CLAUDE_API_KEY", inputKey);
+    location.reload();
+  }
   throw new Error("API key missing");
 }
 
