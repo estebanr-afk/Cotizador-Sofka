@@ -487,14 +487,17 @@ uploadArea.addEventListener('drop', e => {
 fileInput.addEventListener('change', () => handleFiles([...fileInput.files]));
 
 function handleFiles(newFiles) {
-  errorBox.classList.add('hidden');
-  const combined = [...state.files];
-  for (const f of newFiles) {
-    if (combined.length >= 5) break;
-    if (!combined.find(x => x.name === f.name)) combined.push(f);
-  }
-  state.files = combined;
+  // Convertimos a array y filtramos solo PDFs
+  const arr = Array.from(newFiles).filter(f => f.type === 'application/pdf');
+  if (arr.length === 0) return;
+
+  state.files = [...state.files, ...arr].slice(0, 5);
   renderFiles();
+  
+  // Esto activa el botón si hay 2 o más archivos
+  if (state.files.length >= 2) {
+    analyzeBtn.disabled = false;
+  }
 }
 
 function renderFiles() {
