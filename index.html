@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -588,21 +589,32 @@ Reglas: scores 0-100 (precio=más económico, calidad=mejores specs, condiciones
     console.log('[DEBUG] Iniciando fetch, bloques:', contentBlocks.length);
     contentBlocks.forEach((b,i) => console.log('[DEBUG] bloque',i,'tipo:',b.type, b.source ? 'size:'+b.source.data?.length : ''));
 
+   const apiKey = localStorage.getItem("CLAUDE_API_KEY");
+
+if (!apiKey || apiKey === "null") {
+  const inputKey = prompt("Introduce tu Claude API Key (se guardará localmente):");
+  if (inputKey) {
+    localStorage.setItem("CLAUDE_API_KEY", inputKey);
+    location.reload();
+  }
   throw new Error("API key missing");
 }
 
-const apiRes = await fetch("/api/proxy", { // <--- AHORA LLAMA A TU PROXY EN VERCEL
+const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
   method: "POST",
   headers: {
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    "anthropic-version": "2023-06-01",
+    "anthropic-dangerous-direct-browser-access": "true",
+    "x-api-key": apiKey
   },
   body: JSON.stringify({
-    model: "claude-3-5-sonnet-20240620",
-    max_tokens: 4000,
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 3500,
     messages: [
       {
         role: "user",
-        content: optimizarContentBlocks(contentBlocks) 
+        content: optimizarContentBlocks(contentBlocks)
       }
     ]
   })
