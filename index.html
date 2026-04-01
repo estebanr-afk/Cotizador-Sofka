@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -588,9 +587,11 @@ Reglas: scores 0-100 (precio=más económico, calidad=mejores specs, condiciones
     // Log para diagnóstico
     console.log('[DEBUG] Iniciando fetch, bloques:', contentBlocks.length);
     contentBlocks.forEach((b,i) => console.log('[DEBUG] bloque',i,'tipo:',b.type, b.source ? 'size:'+b.source.data?.length : ''));
+
+  throw new Error("API key missing");
 }
 
-const apiRes = await fetch("/api/proxy", { 
+const apiRes = await fetch("/api/proxy", { // <--- AHORA LLAMA A TU PROXY EN VERCEL
   method: "POST",
   headers: {
     "Content-Type": "application/json"
