@@ -599,21 +599,18 @@ if (!apiKey || apiKey === "null") {
   throw new Error("API key missing");
 }
 
-const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
+const apiRes = await fetch("/api/proxy", { // <--- Ahora llamamos a tu puente
   method: "POST",
   headers: {
-    "Content-Type": "application/json",
-    "anthropic-version": "2023-06-01",
-    "anthropic-dangerous-direct-browser-access": "true",
-    "x-api-key": apiKey
+    "Content-Type": "application/json"
   },
   body: JSON.stringify({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 3500,
+    model: "claude-3-5-sonnet-20240620",
+    max_tokens: 4000,
     messages: [
       {
         role: "user",
-        content: optimizarContentBlocks(contentBlocks)
+        content: optimizarContentBlocks(contentBlocks) // Usa la función que ya tienes en tu código
       }
     ]
   })
